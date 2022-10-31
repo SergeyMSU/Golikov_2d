@@ -1,0 +1,16 @@
+
+*.txt
+
+*.avi
+
+*.png
+
+Golikov_2D/.vs/Golikov_2D/v16/
+
+Golikov_2D/
+
+*.xlsx
+
+*.filepart
+
+nohup.out
