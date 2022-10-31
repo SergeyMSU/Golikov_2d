@@ -25,11 +25,13 @@
 #define M_infty  M_inf
 #define phi_0  1.6 // 17.0 // 4.878 //1.627
 #define alpha  45.0
-#define M_alf  12.0 // 12.0
+#define M_alf  1.5 // 12.0
 #define epsilon_ (1.0/M_alf)
 #define step  70000
 #define omega 0.0 //6 //1600
 #define M_0  1.1
+
+#define ddist 2.5
 
 #define kk_ 196.0
 //#define chi 17.0
