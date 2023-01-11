@@ -965,7 +965,7 @@ __device__ double HLLDQ_Korolkov(const double& ro_L, const double& Q_L, const do
     const double& Bx_L, const double& By_L, const double& Bz_L, const double& ro_R, const double& Q_R, const double& p_R, const double& v1_R, const double& v2_R, const double& v3_R,//
     const double& Bx_R, const double& By_R, const double& Bz_R, double* P, double& PQ, const double& n1, const double& n2, const double& n3, const double& rad, int metod, double x, double y)
 {// Не работает, если скорость грани не нулевая
- // Нормаль здесь единичная по осям координат
+ // Нормаль здесь обязательно единичная по осям координат
 
     double bx_L = Bx_L / spi4;
     double by_L = By_L / spi4;
@@ -1177,7 +1177,7 @@ __device__ double HLLDQ_Korolkov(const double& ro_L, const double& Q_L, const do
         ee2 = e2 * suRm + (ptz * SM - pTR * u2 + bn * (sbv2 - sbvz)) / (SR - SM);
         ee1 = e1 * suLm + (ptz * SM - pTL * u1 + bn * (sbv1 - sbvz)) / (SL - SM);
 
-        /*if (fabs(bn) < 0.001 )
+        if (fabs(bn) < 0.000001 ) // Было закомменченно
         {
             vRR = v2;
             wRR = w2;
@@ -1187,7 +1187,7 @@ __device__ double HLLDQ_Korolkov(const double& ro_L, const double& Q_L, const do
             bmm2 = bm2 * suRm;
             btt1 = bt1 * suLm;
             bmm1 = bm1 * suLm;
-        }*/
+        }
 
         /*ppLR = (pTL + ro_L * (SL - u1) * (SM - u1) + pTR + ro_R * (SR - u2) * (SM - u2)) / 2.0;
 
@@ -1307,7 +1307,7 @@ __device__ double HLLDQ_Korolkov(const double& ro_L, const double& Q_L, const do
 
         double vLL, wLL, vRR, wRR, btt1, bmm1, btt2, bmm2;
 
-        if (fabs(ttL) >= 0.001)
+        if (fabs(ttL) >= 0.00001)
         {
             vLL = v1 - bn * bt1 * (SM - u1) / ttL;
             wLL = w1 - bn * bm1 * (SM - u1) / ttL;
@@ -1316,14 +1316,14 @@ __device__ double HLLDQ_Korolkov(const double& ro_L, const double& Q_L, const do
         }
         else
         {
-            printf("ttl = 0   kod:1319, %lf, %lf, %lf, %lf\n", x, y, (SL - SM), bbn);
+            //printf("ttl = 0   kod:1319, %lf, %lf, %lf, %lf\n", x, y, (SL - SM), bbn);
             vLL = v1;
             wLL = w1;
             btt1 = 0.0;
             bmm1 = 0.0;
         }
 
-        if (fabs(ttR) >= 0.001)
+        if (fabs(ttR) >= 0.00001)
         {
             vRR = v2 - bn * bt2 * (SM - u2) / ttR;
             wRR = w2 - bn * bm2 * (SM - u2) / ttR;
@@ -1334,7 +1334,7 @@ __device__ double HLLDQ_Korolkov(const double& ro_L, const double& Q_L, const do
         }
         else
         {
-            printf("ttR = 0   kod:1337, %lf, %lf, %lf\n", x, y, ttR);
+            //printf("ttR = 0   kod:1337, %lf, %lf, %lf\n", x, y, ttR);
             vRR = v2;
             wRR = w2;
             btt2 = 0.0;
@@ -1354,9 +1354,9 @@ __device__ double HLLDQ_Korolkov(const double& ro_L, const double& Q_L, const do
         double SRR = SM + fabs(bn) / sqrtroRR;
 
         double idbn = 1.0;
-        if (fabs(bn) > 0.00001)
+        if (fabs(bn) > 0.000001)
         {
-            printf("not idbn = 0   kod:1359 \n");
+            //printf("not idbn = 0   kod:1359 \n");
             idbn = 1.0 * sign_(bn);
         }
         else

@@ -23,19 +23,19 @@
 
 #define M_inf  0.0 // 0.7 // 0.4 // 0.8
 #define M_infty  M_inf
-#define phi_0  1.6 // 17.0 // 4.878 //1.627
+#define phi_0  3.0 // 17.0 // 4.878 //1.627
 #define alpha  45.0
-#define M_alf  1.5 // 12.0
+#define M_alf  8.0 // 12.0
 #define epsilon_ (1.0/M_alf)
 #define step  70000
 #define omega 0.0 //6 //1600
-#define M_0  1.1
+#define M_0  10.0
 
-#define ddist 2.5
+#define ddist 0.75 // 0.45 // 0.65 // 0.85
 
 #define kk_ 196.0
 //#define chi 17.0
-#define rr_0  0.01005127
+#define rr_0  0.07    // ¬нутренн€€ сфера (на которой став€тс€ граничные услови€ - реально она дальше)
 
 
 extern __device__ int sign_(const double& x);

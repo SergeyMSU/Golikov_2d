@@ -9,14 +9,14 @@
 #include "Header.h"
 
 #define Omega 0.0
-#define N 1024 // 7167 //1792 //1792                 // Количество ячеек по x
-#define M 512 // //1280 //1280                 // Количество ячеек по y
+#define N 1536 // 7167 //1792 //1792                 // Количество ячеек по x
+#define M 1536  // //1280 //1280                 // Количество ячеек по y
 #define K (N*M)                // Количество ячеек в сетке
-#define x_max 50.0 //450.0
+#define x_max 5.0 //450.0
 #define x_min (x_max/(2.0 * N)) // -2760.0 // -2500.0 // -1300  //-2000                // -1500.0
-#define y_max 20.0 // 2250.0 // 1600.0 //1840.0
+#define y_max 5.0 // 2250.0 // 1600.0 //1840.0
 #define y_min (y_max/(2.0 * M))  // -30.0 // (y_max/(2.0 * M)) 
-#define dx ((x_max - x_min)/(N - 1))     // Величина грани по dx
+#define dx ((x_max)/(N))  // ((x_max - x_min)/(N - 1))     // Величина грани по dx
 #define dy ((y_max)/(M)) //  ((y_max - y_min)/(M - 1))     // Величина грани по dy
 
 #define ER_S std::cout << "\n---------------------\nStandart error in file: Solvers.cpp\n" << endl
@@ -26,7 +26,7 @@
 #define hy 00.0
 #define hx -3288.0
 #define grad_p true
-#define Nmin 1              // Каждую какую точку выводим?
+#define Nmin 4              // Каждую какую точку выводим?
 #define THREADS_PER_BLOCK 256    // Количество нитей в одном потоке // Необходимо, чтобы количество ячеек в сетке делилось на число нитей (лучше N делилось на число нитей)
 
 __device__ int sign(double& x);
@@ -1879,8 +1879,8 @@ __global__ void add2(double2* s, double2* u, double3* b, double2* s2, double2* u
     int index = blockIdx.x * blockDim.x + threadIdx.x;   // Глобальный индекс текущей ячейки (текущего потока)
     int n = index % N;                                   // номер ячейки по x (от 0)
     int m = (index - n) / N;                             // номер ячейки по y (от 0)
-    double y = y_min + m * (y_max - y_min) / (M - 1);
-    double x = x_min + n * (x_max - x_min) / (N - 1);
+    double y = y_min + m * dy; // (y_max - y_min) / (M - 1);
+    double x = x_min + n * dx; // (x_max - x_min) / (N - 1);
     double dist = sqrt(x * x + y * y);
     int sign_y = 1;
     if (y < 0.0)
@@ -2200,8 +2200,8 @@ __global__ void Kernel_TVD(double2* s, double2* u, double3* b, double2* s2, doub
     int index = blockIdx.x * blockDim.x + threadIdx.x;   // Глобальный индекс текущей ячейки (текущего потока)
     int n = index % N;                                   // номер ячейки по x (от 0)
     int m = (index - n) / N;                             // номер ячейки по y (от 0)
-    double y = y_min + m * (y_max) / (M);
-    double x = x_min + n * (x_max - x_min) / (N - 1);
+    double y = y_min + m * dy; // (y_max) / (M);
+    double x = x_min + n * dx; // (x_max) / (N);  //(x_max - x_min) / (N - 1);
     double dist = __dsqrt_rn(x * x + y * y);
 
     double2 s_1, s_2, s_3, s_4, s_5, u_1, u_2, u_3, u_4, u_5;      // Переменные всех соседей и самой ячейки
@@ -2215,7 +2215,7 @@ __global__ void Kernel_TVD(double2* s, double2* u, double3* b, double2* s2, doub
     u_1 = u[index];
     b_1 = b[index];
     //if ((n == N - 1) || (m == M - 1) || (dist < 110)) // Жёсткие граничные условия
-    if ((dist < 1.5))  // Жёсткие граничные условия
+    if ((dist < ddist))  // Жёсткие граничные условия
     {
         // В этих ячейках значения параметров зафиксированы и не меняются с течением времени)
         s2[index] = s_1;
@@ -2234,7 +2234,7 @@ __global__ void Kernel_TVD(double2* s, double2* u, double3* b, double2* s2, doub
         {
             u_5.y = 0.01;
         }*/
-        b_5 = b_1;
+        b_5 = { 0.0, 0.0 };  // b_1
     }
     else
     {
@@ -2338,9 +2338,12 @@ __global__ void Kernel_TVD(double2* s, double2* u, double3* b, double2* s2, doub
 
     if (m >= M - 2) // Просто мягкие условия там ставим
     {
-        s51 = s_5;
+        /*s51 = s_5;
         u51 = u_5;
-        b51 = b_5;
+        b51 = b_5;*/
+        s51 = { 1.0, 1.0 / ggg };
+        u51 = { 0.0, 0.0 };
+        b51 = { 0.0, 0.0 };  
     }
     else
     {
@@ -2554,7 +2557,7 @@ __global__ void Kernel_TVD(double2* s, double2* u, double3* b, double2* s2, doub
     P[0] = P[1] = P[2] = P[3] = P[4] = P[5] = P[6] = P[7] = 0.0;
 
     tmin = my_min(tmin, HLLDQ_Korolkov(s12.x, Q, s12.y, u12.x, u12.y, 0.0, b12.x, b12.y, b12.z, s21.x, Q, s21.y, //
-        u21.x, u21.y, 0.0, b21.x, b21.y, b21.z, P, PQ, 1.0, 0.0, 0.0, dx, 3));
+        u21.x, u21.y, 0.0, b21.x, b21.y, b21.z, P, PQ, 1.0, 0.0, 0.0, dx, method));
     PS.x = PS.x + P[0] * dy;
     PS.y = PS.y + P[7] * dy;
     PU.x = PU.x + P[1] * dy;
@@ -2566,7 +2569,7 @@ __global__ void Kernel_TVD(double2* s, double2* u, double3* b, double2* s2, doub
 
     P[0] = P[1] = P[2] = P[3] = P[4] = P[5] = P[6] = P[7] = 0.0;
     tmin = my_min(tmin, HLLDQ_Korolkov(s13.x, Q, s13.y, u13.x, u13.y, 0.0, b13.x, b13.y, b13.z, s31.x, Q, s31.y, //
-        u31.x, u31.y, 0.0, b31.x, b31.y, b31.z, P, PQ, 0.0, -1.0, 0.0, dy, 3));
+        u31.x, u31.y, 0.0, b31.x, b31.y, b31.z, P, PQ, 0.0, -1.0, 0.0, dy, method));
     PS.x = PS.x + P[0] * dx;
     PS.y = PS.y + P[7] * dx;
     PU.x = PU.x + P[1] * dx;
@@ -2578,7 +2581,7 @@ __global__ void Kernel_TVD(double2* s, double2* u, double3* b, double2* s2, doub
 
     P[0] = P[1] = P[2] = P[3] = P[4] = P[5] = P[6] = P[7] = 0.0;
     tmin = my_min(tmin, HLLDQ_Korolkov(s14.x, Q, s14.y, u14.x, u14.y, 0.0, b14.x, b14.y, b14.z, s41.x, Q, s41.y, //
-        u41.x, u41.y, 0.0, b41.x, b41.y, b41.z, P, PQ, -1.0, 0.0, 0.0, dx, 3));
+        u41.x, u41.y, 0.0, b41.x, b41.y, b41.z, P, PQ, -1.0, 0.0, 0.0, dx, method));
     PS.x = PS.x + P[0] * dy;
     PS.y = PS.y + P[7] * dy;
     PU.x = PU.x + P[1] * dy;
@@ -2590,7 +2593,7 @@ __global__ void Kernel_TVD(double2* s, double2* u, double3* b, double2* s2, doub
 
     P[0] = P[1] = P[2] = P[3] = P[4] = P[5] = P[6] = P[7] = 0.0;
     tmin = my_min(tmin, HLLDQ_Korolkov(s15.x, Q, s15.y, u15.x, u15.y, 0.0, b15.x, b15.y, b15.z, s51.x, Q, s51.y, //
-        u51.x, u51.y, 0.0, b51.x, b51.y, b51.z, P, PQ, 0.0, 1.0, 0.0, dy, 3));
+        u51.x, u51.y, 0.0, b51.x, b51.y, b51.z, P, PQ, 0.0, 1.0, 0.0, dy, method));
     PS.x = PS.x + P[0] * dx;
     PS.y = PS.y + P[7] * dx;
     PU.x = PU.x + P[1] * dx;
@@ -3820,7 +3823,7 @@ int main(void)
     //    double y = y_min + k * (y_max) / (M);
     //    cout << y << endl;
     //}
-
+    
    /* double c1, c2, a1, a2, a3, a4, a5, a6, a7;
     ifstream fin;
     fin.open("instable_4.txt");
@@ -3846,15 +3849,15 @@ int main(void)
     fin.close();*/
 
 
-    double chi = 2.0;
+    //double chi = 2.0;
     //double k_ = 0.1;
     //double l_ = 1.0;
     //double Max_ = 0.5;
-    double MM = kk_ / chi;
-    double V_E = chi;
-    double ro_E = MM / (4.0 * pi * V_E * rr_0 * rr_0);
+    //double MM = kk_ / chi;
+    double V_E = phi_0;
+    double ro_E = 1.0/ (phi_0* phi_0 * rr_0 * rr_0); // MM / (4.0 * pi * V_E * rr_0 * rr_0);
     double P_E = ro_E * V_E * V_E / (ggg * M_0 * M_0);   // Мах другой в давлении
-    double B_E = sqrt(kk_) / (M_alf * rr_0);
+    double B_E = sqrt(4.0 * pi) / (M_alf * rr_0);
     for (int k = 0; k < K; k++)  // Заполняем начальные условия
     {
         int n = k % N;                                   // номер ячейки по x (от 0)
@@ -3866,14 +3869,14 @@ int main(void)
         //double dist3 = kv(x) / kv(5.0) + kv(y) / kv(5.0);
         double dist = sqrt(x * x + y * y);
 
-        if (dist < ddist * 1.001)
+        if (dist < ddist * 1.01)
         {
-            host_s[k] = { ro_E * rr_0 * rr_0 / (dist * dist), P_E * pow(rr_0 / dist, 2.0 * ggg) };
+            host_s[k] = { ro_E / pow(dist/ rr_0, 2.0), P_E * pow(rr_0 / dist, 2.0 * ggg) };
             host_u[k] = { V_E * x / dist, V_E * y / dist };
             host_s2[k] = host_s[k];
             host_u2[k] = host_u[k];
 
-            double BE = B_E * (rr_0 / dist);
+            double BE = B_E / (dist / rr_0);
             double the = acos(x / dist);
             double AA, BB, CC;
 
@@ -3894,11 +3897,11 @@ int main(void)
     }
 
 
-    if (false)
+    if (true)
     {
         double c1, c2, a1, a2, a3, a4, a5, a6, a7, a8;
         ifstream fin;
-        fin.open("instable_cp2.txt");
+        fin.open("instable_cp14.txt");
 
         for (int k = 0; k < K; k++)
         {
@@ -3932,12 +3935,12 @@ int main(void)
 
             if (dist < ddist * 1.001)
             {
-                host_s[k] = { ro_E * rr_0 * rr_0 / (dist * dist), P_E * pow(rr_0 / dist, 2.0 * ggg) };
+                host_s[k] = { ro_E / pow(dist / rr_0, 2.0), P_E * pow(rr_0 / dist, 2.0 * ggg) };
                 host_u[k] = { V_E * x / dist, V_E * y / dist };
                 host_s2[k] = host_s[k];
                 host_u2[k] = host_u[k];
 
-                double BE = B_E * (rr_0 / dist);
+                double BE = B_E / (dist / rr_0);
                 double the = acos(x / dist);
                 double AA, BB, CC;
 
@@ -3979,66 +3982,10 @@ int main(void)
     cout << "START" << endl;
 
 
-    //for (int i = 0; i < 0; i = i + 2)  // Сколько шагов по времени делаем?
-    //{
-    //    if (i == 0)
-    //    {
-    //        cout << "HLL" << endl;
-    //    }
-    //    add2 << < K / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (s, u, s2, u2, T, T_do, 0);
-    //    cudaStatus = cudaGetLastError();
-    //    if (cudaStatus != cudaSuccess) {
-    //        fprintf(stderr, "1  addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-    //        exit(-1);
-    //    }
-    //    cudaStatus = cudaDeviceSynchronize();
-    //    if (cudaStatus != cudaSuccess) {
-    //        fprintf(stderr, "1  cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
-    //        exit(-1);
-    //    }
-
-    //    funk_time << <1, 1 >> > (T, T_do, TT, dev_i);
-    //    cudaStatus = cudaGetLastError();
-    //    if (cudaStatus != cudaSuccess) {
-    //        fprintf(stderr, "2  addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-    //        exit(-1);
-    //    }
-    //    cudaStatus = cudaDeviceSynchronize();
-    //    if (cudaStatus != cudaSuccess) {
-    //        fprintf(stderr, "2  cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
-    //        exit(-1);
-    //    }
-
-    //    add2 << < K / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (s2, u2, s, u, T, T_do, 0);
-    //    cudaStatus = cudaGetLastError();
-    //    if (cudaStatus != cudaSuccess) { fprintf(stderr, "3  addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));   exit(-1); }
-    //    cudaStatus = cudaDeviceSynchronize();
-    //    if (cudaStatus != cudaSuccess) { fprintf(stderr, "3  cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus); exit(-1); }
-
-    //    funk_time << <1, 1 >> > (T, T_do, TT, dev_i);
-    //    cudaStatus = cudaGetLastError();
-    //    if (cudaStatus != cudaSuccess) {
-    //        fprintf(stderr, "4  addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-    //        exit(-1);
-    //    }
-    //    cudaStatus = cudaDeviceSynchronize();
-    //    if (cudaStatus != cudaSuccess) {
-    //        fprintf(stderr, "4  cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
-    //        exit(-1);
-    //    }
-
-    //    if (i % 3000 == 0 && i > 1)
-    //    {
-    //        cudaEventRecord(stop, 0);
-    //        cudaEventSynchronize(stop);
-    //        cudaEventElapsedTime(&elapsedTime, start, stop);
-    //        printf("3000 step - Time:  %.2f sec\n", elapsedTime / 1000.0);
-    //        cudaEventRecord(start, 0);
-    //    }
-    //}
-
     int meth = 2;  // HLL метода нет! Нужно сделать
-    for (int i = 0; i < 500000; i = i + 2)  // Сколько шагов по времени делаем?
+
+    // NO TVD
+    for (int i = 0; i < 0; i = i + 2)  // Сколько шагов по времени делаем?
     {
         if (i % 5000 == 0)
         {
@@ -4049,6 +3996,7 @@ int main(void)
             meth = 3;
         }*/
         add2 << < K / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (s, u, b, s2, u2, b2, T, T_do, i, meth);
+        //Kernel_TVD << < K / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> >  (s, u, b, s2, u2, b2, T, T_do, i, meth)
         cudaStatus = cudaGetLastError();
         if (cudaStatus != cudaSuccess) {
             fprintf(stderr, "1  addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
@@ -4072,6 +4020,7 @@ int main(void)
             exit(-1);
         }
 
+        //Kernel_TVD << < K / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (s2, u2, b2, s, u, b, T, T_do, i, meth)
         add2 << < K / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (s2, u2, b2, s, u, b, T, T_do, i, meth);
         cudaStatus = cudaGetLastError();
         if (cudaStatus != cudaSuccess) { fprintf(stderr, "3  addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));   exit(-1); }
@@ -4090,7 +4039,77 @@ int main(void)
             exit(-1);
         }
 
-        if ((i % 50000 == 0 && i > 2))
+        if ((i % 35000 == 0 && i > 2))
+        {
+            cudaEventRecord(stop, 0);
+            cudaEventSynchronize(stop);
+            cudaEventElapsedTime(&elapsedTime, start, stop);
+            printf("2000 step - Time:  %.2f sec\n", elapsedTime / 1000.0);
+            cudaEventRecord(start, 0);
+            cudaMemcpy(host_s, s, size, cudaMemcpyDeviceToHost);
+            cudaMemcpy(host_u, u, size, cudaMemcpyDeviceToHost);
+            cudaMemcpy(host_b, b, size2, cudaMemcpyDeviceToHost);
+            string name = "02_12_" + to_string(i) + ".txt";
+            print_file_mini2(host_s, host_u, host_b, name);
+        }
+    }
+
+    // TVD
+    for (int i = 0; i < 200000; i = i + 2)  // Сколько шагов по времени делаем?
+    {
+        if (i % 1000 == 0)
+        {
+            cout << "Metod  TVD  " << meth << "   " << i << endl;
+        }
+        /*if (i > 100000)
+        {
+            meth = 3;
+        }*/
+        //add2 << < K / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (s, u, b, s2, u2, b2, T, T_do, i, meth);
+        Kernel_TVD << < K / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (s, u, b, s2, u2, b2, T, T_do, i, meth);
+            cudaStatus = cudaGetLastError();
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "1  addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+            exit(-1);
+        }
+        cudaStatus = cudaDeviceSynchronize();
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "1  cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+            exit(-1);
+        }
+
+        funk_time << <1, 1 >> > (T, T_do, TT, dev_i);
+        cudaStatus = cudaGetLastError();
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "2  addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+            exit(-1);
+        }
+        cudaStatus = cudaDeviceSynchronize();
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "2  cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+            exit(-1);
+        }
+
+        Kernel_TVD << < K / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (s2, u2, b2, s, u, b, T, T_do, i, meth);
+            //add2 << < K / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (s2, u2, b2, s, u, b, T, T_do, i, meth);
+            cudaStatus = cudaGetLastError();
+        if (cudaStatus != cudaSuccess) { fprintf(stderr, "3  addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));   exit(-1); }
+        cudaStatus = cudaDeviceSynchronize();
+        if (cudaStatus != cudaSuccess) { fprintf(stderr, "3  cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus); exit(-1); }
+
+        funk_time << <1, 1 >> > (T, T_do, TT, dev_i);
+        cudaStatus = cudaGetLastError();
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "4  addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+            exit(-1);
+        }
+        cudaStatus = cudaDeviceSynchronize();
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "4  cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+            exit(-1);
+        }
+
+        if ((i % 45000 == 0 && i > 2))
         {
             cudaEventRecord(stop, 0);
             cudaEventSynchronize(stop);
@@ -4145,7 +4164,7 @@ int main(void)
     double r_o = 1.0; // 0.25320769;
 
     ofstream fout;
-    fout.open("instable_cp3.txt");
+    fout.open("instable_cp19.txt");
 
     ofstream fout2;
     fout2.open("param_for_texplot.txt");
@@ -4159,19 +4178,26 @@ int main(void)
     ofstream fout4;
     fout4.open("inform.txt");
 
+    ofstream fout6;
+    fout6.open("param_x=0.txt");
+
     fout2 << "TITLE = \"HP\"  VARIABLES = \"X\", \"Y\", \"Ro\", \"P\", \"Vx\", \"Vy\", \"Bx\", \"By\", \"Bz\", \"Max\", \"T\", ZONE T = \"HP\", N = " << K //
         << " , E = " << (N - 1) * (M - 1) << ", F = FEPOINT, ET = quadrilateral" << endl;
     int nn = (int)((N + Nmin - 1) / Nmin);
     int mm = (int)((M + Nmin - 1) / Nmin);
-    fout5 << "TITLE = \"HP\"  VARIABLES = \"X\", \"Y\", \"Ro\", \"P\", \"Vx\", \"Vy\", \"Bx\", \"By\", \"Bz\", \"Max\", \"T\", \"Zav\", ZONE T = \"HP\", N = " << nn * mm //
+    fout5 << "TITLE = \"HP\"  VARIABLES = \"X\", \"Y\", \"Ro\", \"P\", \"Vx\", \"Vy\", \"Bx\", \"By\", \"Bz\", \"Max\", \"T\", \"PP\", \"Fx\", \"Fy\", ZONE T = \"HP\", N = " << nn * mm //
         << " , E = " << (nn - 1)*(mm - 1) << ", F = FEPOINT, ET = quadrilateral" << endl;
+
+
+    fout3 << "TITLE = \"HP\"  VARIABLES = \"X\", \"Ro\", \"P\", \"Vx\", \"Bz\", \"Max\", \"T\", \"PP\", \"Fx\", \"Fy\", \"dP\", ZONE T = \"HP\"" << endl;
+    fout6 << "TITLE = \"HP\"  VARIABLES = \"Y\", \"Ro\", \"P\", \"Vy\", \"Bz\", \"Max\", \"T\", \"PP\", \"Fx\", \"Fy\", \"dP\", ZONE T = \"HP\"" << endl;
 
     for (int k = 0; k < K; k++)
     {
         int n = k % N;                                   // номер ячейки по x (от 0)
         int m = (k - n) / N;                             // номер ячейки по y (от 0)
-        double y = y_min + m * (y_max - y_min) / (M - 1);
-        double x = x_min + n * (x_max - x_min) / (N - 1);
+        double y = y_min + m * dy; // (y_max - y_min) / (M - 1);
+        double x = x_min + n * dx; // (x_max - x_min) / (N - 1);
         fout << x << " " << y << " " << host_s[k].x << " " << host_s[k].y <<//
             " " << host_u[k].x << " " << host_u[k].y << " " << host_b[k].x << " " << host_b[k].y << " " << host_b[k].z  <<  endl;
     }
@@ -4194,26 +4220,104 @@ int main(void)
     //    }
     //}
 
-    
-    for (int k = 0; k < N; k++)
+
+    for (int k = 5; k < N - 1; k++)
     {
         int n = k % N;                                   // номер ячейки по x (от 0)
         int m = (k - n) / N;                             // номер ячейки по y (от 0)
-        double y = y_min + m * (y_max - y_min) / (M - 1);;
-        double x = x_min + n * (x_max - x_min) / (N - 1);
-        double ss = 0.0;
-        if (host_s[k].x > 0)
+        double y = y_min + m * dy; // (y_max - y_min) / (M - 1);
+        double x = x_min + n * dx; // (x_max - x_min) / (N - 1);
+        double zav = 0.0;
+        int kk = (m + 1) * N + n;
+        int kk2 = (m) * N + n + 1;
+        zav = -host_b[k].z * (host_b[kk].z - host_b[k].z) / dy / (4.0 * pi);
+        double Max = 0.0, Temp = 0.0;
+        if (host_s[k].x > 0.0)
         {
-            ss = host_s[k].y / pow(host_s[k].x, ggg);
+            Max = sqrt((host_u[k].x * host_u[k].x + host_u[k].y * host_u[k].y) / (ggg * host_s[k].y / host_s[k].x));
+            Temp = host_s[k].y / host_s[k].x;
         }
-        fout3 << x * r_o << " " << y * r_o << " " << host_s[k].x << " " << host_s[k].y <<//
-            " " << host_u[k].x << " " << host_u[k].y << " "  << host_b[k].x << " " << host_b[k].y << " " << host_b[k].z << " " << ss << endl;
+
+        int nn = (m)*N + n + 1;
+        int nn2 = (m)*N + n - 1;
+
+        double Fx = 0.0, Fy = 0.0;
+        if (m < M - 1 && n < N - 1)
+        {
+            double dAr = 0.0, dAz = 0.0;
+
+            if (n > 0)
+            {
+                dAz = (host_b[nn].z - host_b[nn2].z) / (2.0 * dx);
+            }
+            else
+            {
+                dAz = (host_b[nn].z - host_b[k].z) / (dx);
+            }
+
+            
+            dAr = (host_b[kk].z - host_b[k].z) / (dy);
+
+            Fx = host_b[k].z * dAz / (4.0 * pi);
+            Fy = (-host_b[k].z * host_b[k].z / y - host_b[k].z * dAr) / (4.0 * pi);
+        }
+
+        fout3 << x << " " << host_s[k].x << " " << host_s[k].y <<//
+            " " << host_u[k].x << " " << host_b[k].z << " " << Max << " " << Temp << " " << host_s[k].y + kv(host_b[k].z) / (8.0 * pi) << //
+            " " << Fx << " " << Fy << " " << ((host_s[nn].y + kv(host_b[nn].z) / (8.0 * pi)) - (host_s[k].y + kv(host_b[k].z) / (8.0 * pi))) / dx << endl;
+    }
+
+
+    for (int m = 5; m < M - 1; m++)
+    {
+        int n = 0;
+        double y = y_min + m * dy; // (y_max - y_min) / (M - 1);
+        double x = x_min; // (x_max - x_min) / (N - 1);
+        int kk = (m + 1) * N;
+        int kk2 = (m - 1) * N;
+
+        int nn = (m)*N + 0 + 1;
+        int nn2 = (m)*N + 0 - 1;
+        double zav = 0.0;
+        int k = (m) * N + 0;
+        zav = -host_b[k].z * (host_b[kk].z - host_b[k].z) / dy / (4.0 * pi);
+        double Max = 0.0, Temp = 0.0;
+        if (host_s[k].x > 0.0)
+        {
+            Max = sqrt((host_u[k].x * host_u[k].x + host_u[k].y * host_u[k].y) / (ggg * host_s[k].y / host_s[k].x));
+            Temp = host_s[k].y / host_s[k].x;
+        }
+
+        double Fx = 0.0, Fy = 0.0;
+        if (m < M - 1 && n < N - 1)
+        {
+            double dAr = 0.0, dAz = 0.0;
+
+            if (n > 0)
+            {
+                dAz = (host_b[nn].z - host_b[nn2].z) / (2.0 * dx);
+            }
+            else
+            {
+                dAz = (host_b[nn].z - host_b[k].z) / (dx);
+            }
+
+
+            dAr = (host_b[kk].z - host_b[k].z) / (dy);
+
+            Fx = host_b[k].z * dAz / (4.0 * pi);
+            Fy = (-host_b[k].z * host_b[k].z / y - host_b[k].z * dAr) / (4.0 * pi);
+        }
+
+        fout6 << y << " " << host_s[k].x << " " << host_s[k].y <<//
+            " " << host_u[k].y << " " << host_b[k].z << " " << Max << " " << Temp << " " << host_s[k].y + kv(host_b[k].z) / (8.0 * pi) << //
+            " " << Fx << " " << Fy << " " << ((host_s[kk].y + kv(host_b[kk].z) / (8.0 * pi)) - (host_s[k].y + kv(host_b[k].z) / (8.0 * pi))) / dy << endl;
     }
     cout << "TT = " << *host_TT << endl;
 
     fout4 << "TT = " << *host_TT << "    N = " << N  << "   M = " << M << "   K = " << K  << endl;
     fout4 << "x_min = " << x_min << " " << "x_max = " << x_max << " " << "y_min = " << y_min << " " << "y_max = " << y_max << endl;
-    fout4 << "M_inf = " << M_inf << " " << "phi_0 = " << phi_0 << endl;
+    fout4 << "M_inf = " << M_inf << " " << "phi_0 = " << phi_0 << "    M_A = " << M_alf << endl;
 
     int lll = 0;
 
@@ -4223,29 +4327,60 @@ int main(void)
     {
         int n = k % N;                                   // номер ячейки по x (от 0)
         int m = (k - n) / N;                             // номер ячейки по y (от 0)
+
+        double y = y_min + m * dy; // (y_max - y_min) / (M - 1);
+        double x = x_min + n * dx; // (x_max - x_min) / (N - 1);
+
         if ((n % Nmin != 0) || (m % Nmin != 0))
         {
             continue;
         }
         lll++;
 
+        int kk = (m + 1) * N + n;
+        int kk2 = (m - 1) * N + n;
+
+        int nn = (m) * N + n + 1;
+        int nn2 = (m) * N + n - 1;
+
         double zav = 0.0;
-        if (n > 0 && m > 0 && n < N - 1 && m < M - 1)
+        double Fx = 0.0, Fy = 0.0;
+        if (m < M - 1 && n < N - 1)
         {
-            zav = (host_u[(m)*N + n + 1].y - host_u[(m)*N + n - 1].y) / (2 * dx) - (host_u[(m + 1) * N + n].x - host_u[(m - 1) * N + n].x) / (2 * dy);
+            double dAr = 0.0, dAz = 0.0;
+
+            if (n > 0)
+            {
+                dAz = (host_b[nn].z - host_b[nn2].z) / (2.0 * dx);
+            }
+            else
+            {
+                dAz = (host_b[nn].z - host_b[k].z) / (dx);
+            }
+
+            if (m > 0)
+            {
+                dAr = (host_b[kk].z - host_b[kk2].z) / (2.0 * dy);
+            }
+            else
+            {
+                dAr = (host_b[kk].z - host_b[k].z) / (dy);
+            }
+
+            Fx = host_b[k].z * dAz / (4.0 * pi);
+            Fy = (-host_b[k].z * host_b[k].z / y - host_b[k].z * dAr)/ (4.0 * pi);
         }
 
-        double y = y_min + m * (y_max - y_min) / (M - 1);
-        double x = x_min + n * (x_max - x_min) / (N - 1);
+        
         double Max = 0.0, Temp = 0.0;
         if (host_s[k].x > 0.0)
         {
             Max = sqrt((host_u[k].x * host_u[k].x + host_u[k].y * host_u[k].y) / (ggg * host_s[k].y / host_s[k].x));
             Temp = host_s[k].y / host_s[k].x;
         }
-        fout5 << x * r_o << " " << y * r_o << " " << host_s[k].x << " " << host_s[k].y <<//
+        fout5 << x << " " << y << " " << host_s[k].x << " " << host_s[k].y <<//
             " " << host_u[k].x << " " << host_u[k].y << " "  << host_b[k].x << " " << host_b[k].y << " " << host_b[k].z << " " << //
-            Max << " " << Temp << " "  << zav << endl;
+            Max << " " << Temp << " "  << host_s[k].y + kv(host_b[k].z)/(8.0 * pi) << " " << Fx << " " << Fy << endl;
     }
     cout << lll << " = lll " << endl;
     cout << nn << " = nn " << endl;
