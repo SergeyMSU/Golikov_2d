@@ -23,15 +23,15 @@
 
 #define M_inf  0.0 // 0.7 // 0.4 // 0.8
 #define M_infty  M_inf
-#define phi_0  3.0 // 17.0 // 4.878 //1.627
+#define phi_0  17.0 // 2.0 // 17.0 // 4.878 //1.627
 #define alpha  45.0
-#define M_alf  8.0 // 12.0
+#define M_alf  9.0 // 12.0
 #define epsilon_ (1.0/M_alf)
 #define step  70000
 #define omega 0.0 //6 //1600
 #define M_0  10.0
 
-#define ddist 0.75 // 0.45 // 0.65 // 0.85
+#define ddist 0.3 // 0.45 // 0.65 // 0.85
 
 #define kk_ 196.0
 //#define chi 17.0
@@ -57,5 +57,9 @@ extern __device__ double HLLC_Aleksashov_2D(double2& Ls, double2& Lu, double2& R
 __device__ double HLLDQ_Korolkov(const double& ro_L, const double& Q_L, const double& p_L, const double& v1_L, const double& v2_L, const double& v3_L,//
     const double& Bx_L, const double& By_L, const double& Bz_L, const double& ro_R, const double& Q_R, const double& p_R, const double& v1_R, const double& v2_R, const double& v3_R,//
     const double& Bx_R, const double& By_R, const double& Bz_R, double* P, double& PQ, const double& n1, const double& n2, const double& n3, const double& rad, int metod, double x = 0.0, double y = 0.0);
+__device__ double HLLDQ_Korolkov2(const double& ro_L, const double& Q_L, const double& p_L, const double& v1_L, const double& v2_L, const double& v3_L,//
+    const double& Bx_L, const double& By_L, const double& Bz_L, const double& ro_R, const double& Q_R, const double& p_R, const double& v1_R, const double& v2_R, const double& v3_R,//
+    const double& Bx_R, const double& By_R, const double& Bz_R, double* P, double& PQ, const double& n1, const double& n2, const double& n3, const double& rad, int metod, double x = 0.0, double y = 0.0);
+
 extern __device__ double POTOK_Korolkov(const double& ro_L, const double& Q_L, const double& p_L, const double& v1_L, const double& v2_L, const double& v3_L,//
     const double& Bx_L, const double& By_L, const double& Bz_L, double* P, const double& n1, const double& n2, const double& n3);

@@ -9,12 +9,12 @@
 #include "Header.h"
 
 #define Omega 0.0
-#define N 1536 // 7167 //1792 //1792                 // Количество ячеек по x
+#define N 2816 // 7167 //1792 //1792                 // Количество ячеек по x
 #define M 1536  // //1280 //1280                 // Количество ячеек по y
 #define K (N*M)                // Количество ячеек в сетке
-#define x_max 5.0 //450.0
+#define x_max 7.0 //450.0
 #define x_min (x_max/(2.0 * N)) // -2760.0 // -2500.0 // -1300  //-2000                // -1500.0
-#define y_max 5.0 // 2250.0 // 1600.0 //1840.0
+#define y_max 4.0 // 2250.0 // 1600.0 //1840.0
 #define y_min (y_max/(2.0 * M))  // -30.0 // (y_max/(2.0 * M)) 
 #define dx ((x_max)/(N))  // ((x_max - x_min)/(N - 1))     // Величина грани по dx
 #define dy ((y_max)/(M)) //  ((y_max - y_min)/(M - 1))     // Величина грани по dy
@@ -26,7 +26,7 @@
 #define hy 00.0
 #define hx -3288.0
 #define grad_p true
-#define Nmin 4              // Каждую какую точку выводим?
+#define Nmin 3              // Каждую какую точку выводим?
 #define THREADS_PER_BLOCK 256    // Количество нитей в одном потоке // Необходимо, чтобы количество ячеек в сетке делилось на число нитей (лучше N делилось на число нитей)
 
 __device__ int sign(double& x);
@@ -2364,12 +2364,12 @@ __global__ void Kernel_TVD(double2* s, double2* u, double3* b, double2* s2, doub
     }
     else if (n == 1)
     {
-        s41 = s_2;
-        u41.y = u_2.y;
-        u41.x = -u_2.x;
-        b41.x = -b_2.x;
-        b41.y = -b_2.y;
-        b41.z = b_2.z;
+        s41 = s_4;
+        u41.y = u_4.y;
+        u41.x = -u_4.x;
+        b41.x = -b_4.x;
+        b41.y = -b_4.y;
+        b41.z = b_4.z;
     }
     else
     {
@@ -2379,7 +2379,7 @@ __global__ void Kernel_TVD(double2* s, double2* u, double3* b, double2* s2, doub
     }
 
 
-    if (m == 1)
+    if (m == 0)
     {
         s31 = s_5;
         u31.x = u_5.x;
@@ -2388,7 +2388,7 @@ __global__ void Kernel_TVD(double2* s, double2* u, double3* b, double2* s2, doub
         b31.y = b_5.y;
         b31.z = -b_5.z;
     }
-    else if (m == 0)
+    else if (m == 1)
     {
         s31 = s_3;
         u31.x = u_3.x;
@@ -3764,6 +3764,49 @@ void print_file_mini2(double2* host_s_p, double2* host_u_p, double3* host_b_p, s
     fout.close();
 }
 
+void print_file_mini2(double2* host_s_p, double2* host_u_p, double3* host_b_p, string name, double TTT)
+{
+    ofstream fout;
+    fout.open(name);
+    double r_o = 1.0; // 0.25320769;
+    int nn = (int)((N + Nmin - 1) / Nmin);
+    int mm = (int)((M + Nmin - 1) / Nmin);
+    fout << "TITLE = \"HP\"  VARIABLES = \"X\", \"Y\", \"Ro\", \"P\", \"Vx\", \"Vy\", \"Bx\", \"By\", \"Bz\", \"Max\", \"T\", ZONE T = \"HP\", N = " << nn * mm //
+        << " , E = " << (nn - 1) * (mm - 1) << ", F = FEPOINT, ET = quadrilateral, SOLUTIONTIME = "<< TTT << endl;
+    for (int k = 0; k < K; k++)
+    {
+        int n = k % N;                                   // номер ячейки по x (от 0)
+        int m = (k - n) / N;                             // номер ячейки по y (от 0)
+        if ((n % Nmin != 0) || (m % Nmin != 0))
+        {
+            continue;
+        }
+
+        double y = y_min + m * (y_max - y_min) / (M - 1);
+        double x = x_min + n * (x_max - x_min) / (N - 1);
+        double Max = 0.0, Temp = 0.0;
+        if (host_s_p[k].x > 0.0)
+        {
+            Max = sqrt((host_u_p[k].x * host_u_p[k].x + host_u_p[k].y * host_u_p[k].y) / (ggg * host_s_p[k].y / host_s_p[k].x));
+            Temp = host_s_p[k].y / host_s_p[k].x;
+        }
+        fout << x * r_o << " " << y * r_o << " " << host_s_p[k].x << " " << host_s_p[k].y <<//
+            " " << host_u_p[k].x << " " << host_u_p[k].y << " " << host_b_p[k].x << " " << host_b_p[k].y << " " << host_b_p[k].z << " " << //
+            Max << " " << Temp << endl;
+    }
+
+    for (int k = 0; k < nn * mm; k = k + 1)
+    {
+        int n = k % nn;                                   // номер ячейки по x (от 0)
+        int m = (k - n) / nn;
+        if ((m < mm - 1) && (n < nn - 1))
+        {
+            fout << m * nn + n + 1 << " " << m * nn + n + 2 << " " << (m + 1) * nn + n + 2 << " " << (m + 1) * nn + n + 1 << endl;
+        }
+    }
+    fout.close();
+}
+
 int main(void)
 {
     double2* host_s, * host_u;
@@ -3780,6 +3823,7 @@ int main(void)
     double* T, * T_do, * TT;
     int size = K * sizeof(double2);
     int size2 = K * sizeof(double3);
+    double time_null = -1.0;
 
     cudaEvent_t start, stop;
     cudaError_t cudaStatus;
@@ -3897,7 +3941,7 @@ int main(void)
     }
 
 
-    if (true)
+    if (false)
     {
         double c1, c2, a1, a2, a3, a4, a5, a6, a7, a8;
         ifstream fin;
@@ -3985,7 +4029,7 @@ int main(void)
     int meth = 2;  // HLL метода нет! Нужно сделать
 
     // NO TVD
-    for (int i = 0; i < 0; i = i + 2)  // Сколько шагов по времени делаем?
+    for (int i = 0; i < 200000; i = i + 2)  // Сколько шагов по времени делаем?
     {
         if (i % 5000 == 0)
         {
@@ -4039,7 +4083,7 @@ int main(void)
             exit(-1);
         }
 
-        if ((i % 35000 == 0 && i > 2))
+        if ((i % 50000 == 0 && i > 2))
         {
             cudaEventRecord(stop, 0);
             cudaEventSynchronize(stop);
@@ -4055,7 +4099,7 @@ int main(void)
     }
 
     // TVD
-    for (int i = 0; i < 200000; i = i + 2)  // Сколько шагов по времени делаем?
+    for (int i = 0; i < 400000; i = i + 2)  // Сколько шагов по времени делаем?
     {
         if (i % 1000 == 0)
         {
@@ -4109,18 +4153,23 @@ int main(void)
             exit(-1);
         }
 
-        if ((i % 45000 == 0 && i > 2))
+        if ((i % 100000 == 0 && i > 5000))
         {
             cudaEventRecord(stop, 0);
             cudaEventSynchronize(stop);
             cudaEventElapsedTime(&elapsedTime, start, stop);
-            printf("2000 step - Time:  %.2f sec\n", elapsedTime / 1000.0);
+            printf("3000 step - Time:  %.2f sec\n", elapsedTime / 1000.0);
             cudaEventRecord(start, 0);
             cudaMemcpy(host_s, s, size, cudaMemcpyDeviceToHost);
             cudaMemcpy(host_u, u, size, cudaMemcpyDeviceToHost);
             cudaMemcpy(host_b, b, size2, cudaMemcpyDeviceToHost);
-            string name = "02_12_" + to_string(i) + ".txt";
-            print_file_mini2(host_s, host_u, host_b, name);
+            cudaMemcpy(host_TT, TT, sizeof(double), cudaMemcpyDeviceToHost);
+            string name = "11_01_" + to_string(i) + ".txt";
+            if (time_null < 0.0)
+            {
+                time_null = *host_TT;
+            }
+            print_file_mini2(host_s, host_u, host_b, name, *host_TT - time_null);
         }
     }
     
@@ -4164,7 +4213,7 @@ int main(void)
     double r_o = 1.0; // 0.25320769;
 
     ofstream fout;
-    fout.open("instable_cp19.txt");
+    fout.open("instable_for_inner_b3.txt");
 
     ofstream fout2;
     fout2.open("param_for_texplot.txt");
@@ -4181,11 +4230,14 @@ int main(void)
     ofstream fout6;
     fout6.open("param_x=0.txt");
 
+    ofstream bfout;
+    bfout.open("save_b3.dat", ios::binary);
+
     fout2 << "TITLE = \"HP\"  VARIABLES = \"X\", \"Y\", \"Ro\", \"P\", \"Vx\", \"Vy\", \"Bx\", \"By\", \"Bz\", \"Max\", \"T\", ZONE T = \"HP\", N = " << K //
         << " , E = " << (N - 1) * (M - 1) << ", F = FEPOINT, ET = quadrilateral" << endl;
     int nn = (int)((N + Nmin - 1) / Nmin);
     int mm = (int)((M + Nmin - 1) / Nmin);
-    fout5 << "TITLE = \"HP\"  VARIABLES = \"X\", \"Y\", \"Ro\", \"P\", \"Vx\", \"Vy\", \"Bx\", \"By\", \"Bz\", \"Max\", \"T\", \"PP\", \"Fx\", \"Fy\", ZONE T = \"HP\", N = " << nn * mm //
+    fout5 << "TITLE = \"HP\"  VARIABLES = \"X\", \"Y\", \"Ro\", \"P\", \"Vx\", \"Vy\", \"Bx\", \"By\", \"Bz\", \"Max\", \"T\", \"PP\", \"Fx\", \"Fy\", \"zav\",  ZONE T = \"HP\", N = " << nn * mm //
         << " , E = " << (nn - 1)*(mm - 1) << ", F = FEPOINT, ET = quadrilateral" << endl;
 
 
@@ -4200,6 +4252,13 @@ int main(void)
         double x = x_min + n * dx; // (x_max - x_min) / (N - 1);
         fout << x << " " << y << " " << host_s[k].x << " " << host_s[k].y <<//
             " " << host_u[k].x << " " << host_u[k].y << " " << host_b[k].x << " " << host_b[k].y << " " << host_b[k].z  <<  endl;
+        bfout.write((char*)&x, sizeof(x));
+        bfout.write((char*)&y, sizeof(y));
+        bfout.write((char*)&host_s[k].x, sizeof(host_s[k].x));
+        bfout.write((char*)&host_s[k].y, sizeof(host_s[k].y));
+        bfout.write((char*)&host_u[k].x, sizeof(host_u[k].x));
+        bfout.write((char*)&host_u[k].y, sizeof(host_u[k].y));
+        bfout.write((char*)&host_b[k].z, sizeof(host_b[k].z));
     }
 
     //for (int k = 0; k < K; k++)
@@ -4317,7 +4376,7 @@ int main(void)
 
     fout4 << "TT = " << *host_TT << "    N = " << N  << "   M = " << M << "   K = " << K  << endl;
     fout4 << "x_min = " << x_min << " " << "x_max = " << x_max << " " << "y_min = " << y_min << " " << "y_max = " << y_max << endl;
-    fout4 << "M_inf = " << M_inf << " " << "phi_0 = " << phi_0 << "    M_A = " << M_alf << endl;
+    fout4 << "M_inf = " << M_inf << " " << "phi_0 = " << phi_0 << "    M_A = " << M_alf << "   ddist = " << ddist <<  endl;
 
     int lll = 0;
 
@@ -4369,6 +4428,11 @@ int main(void)
 
             Fx = host_b[k].z * dAz / (4.0 * pi);
             Fy = (-host_b[k].z * host_b[k].z / y - host_b[k].z * dAr)/ (4.0 * pi);
+
+            if (n > 0 && m > 0)
+            {
+                zav = (host_u[nn].y - host_u[nn2].y) / (2.0 * dx) - (host_u[kk].x - host_u[kk2].x) / (2.0 * dy);
+            }
         }
 
         
@@ -4380,7 +4444,7 @@ int main(void)
         }
         fout5 << x << " " << y << " " << host_s[k].x << " " << host_s[k].y <<//
             " " << host_u[k].x << " " << host_u[k].y << " "  << host_b[k].x << " " << host_b[k].y << " " << host_b[k].z << " " << //
-            Max << " " << Temp << " "  << host_s[k].y + kv(host_b[k].z)/(8.0 * pi) << " " << Fx << " " << Fy << endl;
+            Max << " " << Temp << " "  << host_s[k].y + kv(host_b[k].z)/(8.0 * pi) << " " << Fx << " " << Fy << " " << zav <<  endl;
     }
     cout << lll << " = lll " << endl;
     cout << nn << " = nn " << endl;

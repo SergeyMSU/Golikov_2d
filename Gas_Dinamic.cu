@@ -1157,15 +1157,16 @@ __device__ double HLLDQ_Korolkov(const double& ro_L, const double& Q_L, const do
         double ptz = (ptzR + ptzL) / 2.0;
 
 
-        vRR = UZ2 / UZ0;
+        vRR = UZ2 / UZ0;                 // РАЗМАЗЫВАНИЕ!!!!
         wRR = UZ3 / UZ0;
         vLL = vRR;
         wLL = wRR;
 
-        /*vRR = v2 + bn * (bt2 - bt) / suR / ro_R;
-        wRR = w2 + bn * (bm2 - bm) / suR / ro_R;
-        vLL = v1 + bn * (bt1 - bt) / suL / ro_L;
-        wLL = w1 + bn * (bm1 - bm) / suL / ro_L;*/
+        //vRR = v2 + bn * (bt2 - bt) / suR / ro_R;  // Не размазывание!!!
+        //wRR = w2 + bn * (bm2 - bm) / suR / ro_R;
+        //vLL = v1 + bn * (bt1 - bt) / suL / ro_L;
+        //wLL = w1 + bn * (bm1 - bm) / suL / ro_L;
+
 
         btt2 = bt;
         bmm2 = bm;
@@ -1177,17 +1178,17 @@ __device__ double HLLDQ_Korolkov(const double& ro_L, const double& Q_L, const do
         ee2 = e2 * suRm + (ptz * SM - pTR * u2 + bn * (sbv2 - sbvz)) / (SR - SM);
         ee1 = e1 * suLm + (ptz * SM - pTL * u1 + bn * (sbv1 - sbvz)) / (SL - SM);
 
-        if (fabs(bn) < 0.000001 ) // Было закомменченно
-        {
-            vRR = v2;
-            wRR = w2;
-            vLL = v1;
-            wLL = w1;
-            btt2 = bt2 * suRm;
-            bmm2 = bm2 * suRm;
-            btt1 = bt1 * suLm;
-            bmm1 = bm1 * suLm;
-        }
+        //if (fabs(bn) < 0.000001 ) // Было закомменченно
+        //{
+        //    vRR = v2;
+        //    wRR = w2;
+        //    vLL = v1;
+        //    wLL = w1;
+        //    btt2 = bt2 * suRm;
+        //    bmm2 = bm2 * suRm;
+        //    btt1 = bt1 * suLm;
+        //    bmm1 = bm1 * suLm;
+        //}
 
         /*ppLR = (pTL + ro_L * (SL - u1) * (SM - u1) + pTR + ro_R * (SR - u2) * (SM - u2)) / 2.0;
 
@@ -1506,4 +1507,363 @@ __device__ double HLLDQ_Korolkov(const double& ro_L, const double& Q_L, const do
         return time;
     }
 
+}
+
+
+__device__ double HLLDQ_Korolkov2(const double& ro_L, const double& Q_L, const double& p_L, const double& v1_L, const double& v2_L, const double& v3_L,//
+    const double& Bx_L, const double& By_L, const double& Bz_L, const double& ro_R, const double& Q_R, const double& p_R, const double& v1_R, const double& v2_R, const double& v3_R,//
+    const double& Bx_R, const double& By_R, const double& Bz_R, double* P, double& PQ, const double& n1, const double& n2, const double& n3, const double& rad, int metod, double x, double y)
+{// Не работает, если скорость грани не нулевая
+ // Нормаль здесь обязательно единичная по осям координат
+
+    /*dimension qqq(8), qqq1(8), qqq2(8)
+        dimension FR(8), FL(8)
+        dimension FW(8), UL(8), UZ(8), UR(8)
+        dimension UZL(8), UZR(8)
+        dimension UZZL(8), UZZR(8)
+        dimension dq(8)
+
+        dimension vL(3), vR(3), bL(3), bR(3)
+        dimension vzL(3), vzR(3), bzL(3), bzR(3)
+        dimension vzzL(3), vzzR(3), bzzL(3), bzzR(3)
+        dimension aco(3, 3), qv(3), qb(3)*/
+
+    double aco[3][3];
+    double vL[3], vR[3], bL[3], bR[3], FL[9], FR[9], UL[9], UR[9], UZ[9], vzL[3], vzR[3], bzL[3], bzR[3], UZL[9], UZR[9], qqq[9];
+
+    double eps = 1E-12;
+    double epsb = 1E-06;
+    double eps_p = 1E-06;
+    double eps_d = 1E-03;
+
+
+
+    double wv = 0.0;
+
+
+    double r1 = ro_L;
+    double u1 = v1_L;
+    double v1 = v2_L;
+    double w1 = v3_L;
+    double p1 = p_L;
+    double bx1 = Bx_L / spi4;
+    double by1 = By_L / spi4;
+    double bz1 = Bz_L / spi4;
+
+
+    double r2 = ro_R;
+    double u2 = v1_R;
+    double v2 = v2_R;
+    double w2 = v3_R;
+    double p2 = p_R;
+    double bx2 = Bx_R / spi4;
+    double by2 = By_R / spi4;
+    double bz2 = Bz_R / spi4;
+
+    double ro = (r2 + r1) / 2.0;
+    double au = (u2 + u1) / 2.0;
+    double av = (v2 + v1) / 2.0;
+    double aw = (w2 + w1) / 2.0;
+    double ap = (p2 + p1) / 2.0;
+    double abx = (bx2 + bx1) / 2.0;
+    double aby = (by2 + by1) / 2.0;
+    double abz = (bz2 + bz1) / 2.0;
+
+
+    double bk = abx * n1 + aby * n2 + abz * n3;
+    double b2 = kv(abx) + kv(aby) + kv(abz);
+
+    double d = b2 - kv(bk);
+    aco[0][0] = n1;
+    aco[1][0] = n2;
+    aco[2][0] = n3;
+
+    double aix, aiy, aiz, aik;
+
+    if (d > eps)
+    {
+        d = sqrt(d);
+        aco[0][1] = (abx - bk * n1) / d;
+        aco[1][1] = (aby - bk * n2) / d;
+        aco[2][1] = (abz - bk * n3) / d;
+        aco[0][2] = (aby * n3 - abz * n2) / d;
+        aco[1][2] = (abz * n1 - abx * n3) / d;
+        aco[2][2] = (abx * n2 - aby * n1) / d;
+    }
+    else
+    {
+        if (fabs(n1) < fabs(n2) && fabs(n1) < fabs(n3))
+        {
+            aix = 1.0;
+            aiy = 0.0;
+            aiz = 0.0;
+        }
+        else if (fabs(n2) < fabs(n3))
+        {
+            aix = 0.0;
+            aiy = 1.0;
+            aiz = 0.0;
+        }
+        else
+        {
+            aix = 0.0;
+            aiy = 0.0;
+            aiz = 1.0;
+        }
+        aik = aix * n1 + aiy * n2 + aiz * n3;
+        d = sqrt(1.0 - kv(aik));
+        aco[0][1] = (aix - aik * n1) / d;
+        aco[1][1] = (aiy - aik * n2) / d;
+        aco[2][1] = (aiz - aik * n3) / d;
+        aco[0][2] = (aiy * n3 - aiz * n2) / d;
+        aco[1][2] = (aiz * n1 - aix * n3) / d;
+        aco[2][2] = (aix * n2 - aiy * n1) / d;
+    }
+
+    for (int i = 0; i < 3; i++)
+    {
+        vL[i] = aco[0][i] * u1 + aco[1][i] * v1 + aco[2][i] * w1;
+        vR[i] = aco[0][i] * u2 + aco[1][i] * v2 + aco[2][i] * w2;
+        bL[i] = aco[0][i] * bx1 + aco[1][i] * by1 + aco[2][i] * bz1;
+        bR[i] = aco[0][i] * bx2 + aco[1][i] * by2 + aco[2][i] * bz2;
+    }
+
+    double aaL = bL[0] / sqrt(r1);
+    double b2L = kv(bL[0]) + kv(bL[1]) + kv(bL[2]);
+    double b21 = b2L / r1;
+    double cL = sqrt(ga * p1 / r1);
+    double qp = sqrt(b21 + cL * (cL + 2.0 * aaL));
+    double qm = sqrt(b21 + cL * (cL - 2.0 * aaL));
+    double cfL = (qp + qm) / 2.0;
+    double ptL = p1 + b2L / 2.0;
+
+    double aaR = bR[0] / sqrt(r2);
+    double b2R = kv(bR[0]) + kv(bR[1]) + kv(bR[2]);
+    double b22 = b2R / r2;
+    double cR = sqrt(ga * p2 / r2);
+    qp = sqrt(b22 + cR * (cR + 2.0 * aaR));
+    qm = sqrt(b22 + cR * (cR - 2.0 * aaR));
+    double cfR = (qp + qm) / 2.0;
+    double ptR = p2 + b2R / 2.0;
+
+    double aC = (aaL + aaR) / 2.0;
+    double b2o = (b22 + b21) / 2.0;
+    double cC = sqrt(ga * ap / ro);
+    qp = sqrt(b2o + cC * (cC + 2.0 * aC));
+    qm = sqrt(b2o + cC * (cC - 2.0 * aC));
+    double cfC = (qp + qm) / 2.0;
+    double vC1 = (vL[0] + vR[0]) / 2.0;
+
+    double SL = min((vL[0] - cfL), (vC1 - cfC));
+    double SR = max((vR[0] + cfR), (vC1 + cfC));
+
+    double UU = max(fabs(SL), fabs(SR));
+    double time = krit * rad / UU;
+
+    double suR = SR - vR[0];
+    double suL = SL - vL[0];
+    double SM = (suR * r2 * vR[0] - ptR + ptL - suL * r1 * vL[0])
+        / (suR * r2 - suL * r1);
+
+
+
+    double upt1 = (kv(u1) + kv(v1) + kv(w1)) / 2.0;
+    double sbv1 = u1 * bx1 + v1 * by1 + w1 * bz1;
+
+    double upt2 = (kv(u2) + kv(v2) + kv(w2)) / 2.0;
+    double sbv2 = u2 * bx2 + v2 * by2 + w2 * bz2;
+
+    double e1 = p1 / g1 + r1 * upt1 + b2L / 2.0;
+    double e2 = p2 / g1 + r2 * upt2 + b2R / 2.0;
+
+    FL[0] = r1 * vL[0];
+    FL[8] = Q_L * vL[0];
+    FL[1] = r1 * vL[0] * vL[0] + ptL - kv(bL[0]);
+    FL[2] = r1 * vL[0] * vL[1] - bL[0] * bL[1];
+    FL[3] = r1 * vL[0] * vL[2] - bL[0] * bL[2];
+    FL[4] = (e1 + ptL) * vL[0] - bL[0] * sbv1;
+    FL[5] = 0.0;
+    FL[6] = vL[0] * bL[1] - vL[1] * bL[0];
+    FL[7] = vL[0] * bL[2] - vL[2] * bL[0];
+
+    FR[0] = r2 * vR[0];
+    FR[8] = Q_R * vL[0];
+    FR[1] = r2 * vR[0] * vR[0] + ptR - kv(bR[0]);
+    FR[2] = r2 * vR[0] * vR[1] - bR[0] * bR[1];
+    FR[3] = r2 * vR[0] * vR[2] - bR[0] * bR[2];
+    FR[4] = (e2 + ptR) * vR[0] - bR[0] * sbv2;
+    FR[5] = 0.0;
+    FR[6] = vR[0] * bR[1] - vR[1] * bR[0];
+    FR[7] = vR[0] * bR[2] - vR[2] * bR[0];
+
+    UL[0] = r1;
+    UL[8] = Q_L;
+    UL[4] = e1;
+    UR[0] = r2;
+    UR[8] = Q_R;
+    UR[4] = e2;
+
+    for (int ik = 0; ik < 3; ik++)
+    {
+        UL[ik + 1] = r1 * vL[ik];
+        UL[ik + 5] = bL[ik];
+        UR[ik + 1] = r2 * vR[ik];
+        UR[ik + 5] = bR[ik];
+    }
+
+    for (int ik = 0; ik < 9; ik++)
+    {
+        UZ[ik] = (SR * UR[ik] - SL * UL[ik] + FL[ik] - FR[ik]) / (SR - SL);
+    }
+
+
+    double suRm = suR / (SR - SM);
+    double suLm = suL / (SL - SM);
+    double QzR = Q_R * suRm;
+    double QzL = Q_L * suLm;
+    double rzR = r2 * suRm;
+    double rzL = r1 * suLm;
+    vzR[0] = SM;
+    vzL[0] = SM;
+    double ptzR = ptR + r2 * suR * (SM - vR[0]);
+    double ptzL = ptL + r1 * suL * (SM - vL[0]);
+    double ptz = (ptzR + ptzL) / 2.0;
+    bzR[0] = UZ[5];
+    bzL[0] = UZ[5];
+
+    vzR[1] = UZ[2] / UZ[0];
+    vzR[2] = UZ[3] / UZ[0];
+    vzL[1] = vzR[1];
+    vzL[2] = vzR[2];
+
+    vzR[1] = vR[1] + UZ[5] * (bR[1] - UZ[6]) / suR / r2;
+    vzR[2] = vR[2] + UZ[5] * (bR[2] - UZ[7]) / suR / r2;
+    vzL[1] = vL[1] + UZ[5] * (bL[1] - UZ[6]) / suL / r1;
+    vzL[2] = vL[2] + UZ[5] * (bL[2] - UZ[7]) / suL / r1;
+
+    bzR[1] = UZ[6];
+    bzR[2] = UZ[7];
+    bzL[1] = bzR[1];
+    bzL[2] = bzR[2];
+
+    double sbvz = (UZ[5] * UZ[1] + UZ[6] * UZ[2] + UZ[7] * UZ[3]) / UZ[0];
+
+    double ezR = e2 * suRm + (ptz * SM - ptR * vR[0] + UZ[5] * (sbv2 - sbvz)) / (SR - SM);
+    double ezL = e1 * suLm + (ptz * SM - ptL * vL[0] + UZ[5] * (sbv1 - sbvz)) / (SL - SM);
+
+    if (fabs(UZ[5]) < epsb)
+    {
+        vzR[1] = vR[1];
+        vzR[2] = vR[2];
+        vzL[1] = vL[1];
+        vzL[2] = vL[2];
+        bzR[1] = bR[1] * suRm;
+        bzR[2] = bR[2] * suRm;
+        bzL[1] = bL[1] * suLm;
+        bzL[2] = bL[2] * suLm;
+    }
+    UZL[0] = rzL;
+    UZL[8] = QzL;
+    UZL[4] = ezL;
+    UZR[0] = rzR;
+    UZR[8] = QzR;
+    UZR[4] = ezR;
+    
+    for (int ik = 0; ik < 3; ik++)
+    {
+        UZL[ik + 1] = vzL[ik] * rzL;
+        UZL[ik + 5] = bzL[ik];
+        UZR[ik + 1] = vzR[ik] * rzR;
+        UZR[ik + 5] = bzR[ik];
+    }
+
+    double qv[3], qb[3];
+
+    if (SL > wv)
+    {
+        qqq[0] = FL[0] - wv * UL[0];
+        qqq[8] = FL[8] - wv * UL[8];
+        qqq[4] = FL[4] - wv * UL[4];
+
+        for (int ik = 1; ik < 4; ik++) 
+        {
+            qv[ik - 1] = FL[ik] - wv * UL[ik];
+        }
+        for (int ik = 5; ik < 8; ik++)
+        {
+            qb[ik - 5] = FL[ik] - wv * UL[ik];
+        }
+    }
+
+    if (SL <= wv && SM >= wv)
+    {
+        qqq[0] = FL[0] + SL * (rzL - r1) - wv * UZL[0];
+        qqq[8] = FL[8] + SL * (QzL - Q_L) - wv * UZL[8];
+        qqq[4] = FL[4] + SL * (ezL - e1) - wv * UZL[4];
+        for (int ik = 1; ik < 4; ik++)
+        {
+            qv[ik - 1] = FL[ik] + SL * (UZL[ik] - UL[ik]) - wv * UZL[ik];
+        }
+        for (int ik = 5; ik < 8; ik++)
+        {
+            qb[ik - 5] = FL[ik] + SL * (UZL[ik] - UL[ik]) - wv * UZL[ik];
+        }
+    }
+
+    if (SM <= wv && SR >= wv)
+    {
+        qqq[0] = FR[0] + SR * (rzR - r2) - wv * UZR[0];
+        qqq[8] = FR[8] + SR * (QzR - Q_R) - wv * UZR[8];
+        qqq[4] = FR[4] + SR * (ezR - e2) - wv * UZR[4];
+        for (int ik = 1; ik < 4; ik++)
+        {
+            qv[ik - 1] = FR[ik] + SR * (UZR[ik] - UR[ik]) - wv * UZR[ik];
+        }
+        for (int ik = 5; ik < 8; ik++)
+        {
+            qb[ik - 5] = FR[ik] + SR * (UZR[ik] - UR[ik]) - wv * UZR[ik];
+        }
+    }
+
+    if (SR < wv)
+    {
+        qqq[0] = FR[0] - wv * UR[0];
+        qqq[8] = FR[8] - wv * UR[8];
+        qqq[4] = FR[4] - wv * UR[4];
+        for (int ik = 1; ik < 4; ik++)
+        {
+            qv[ik - 1] = FR[ik] - wv * UR[ik];
+        }
+        for (int ik = 5; ik < 8; ik++)
+        {
+            qb[ik - 5] = FR[ik] - wv * UR[ik];
+        }
+    }
+
+    //double SN = max(fabs(SL), fabs(SR));
+    //qb[0] = -SN * (bR[0] - bL[0]);
+
+    for (int i = 0; i < 3; i++)
+    {
+        qqq[i + 1] = aco[i][0] * qv[0] + aco[i][1] * qv[1] + aco[i][2] * qv[2];
+        qqq[i + 5] = aco[i][0] * qb[0] + aco[i][1] * qb[1] + aco[i][2] * qb[2];
+        qqq[i + 5] = spi4 * qqq[i + 5];
+    }
+
+
+
+    P[0] = qqq[0];
+    P[1] = qqq[1];
+    P[2] = qqq[2];
+    P[3] = qqq[3];
+    P[4] = qqq[5];
+    P[5] = qqq[6];
+    P[6] = qqq[7];
+    P[7] = qqq[4];
+    PQ = qqq[8];
+    return time;
+
+    
+
+    
 }
