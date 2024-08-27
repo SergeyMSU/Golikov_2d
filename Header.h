@@ -25,7 +25,7 @@
 #define M_infty  M_inf
 #define phi_0  17.0 // 2.0 // 17.0 // 4.878 //1.627
 #define alpha  45.0
-#define M_alf  9.0 // 12.0
+#define M_alf  6.0 // 12.0
 #define epsilon_ (1.0/M_alf)
 #define step  70000
 #define omega 0.0 //6 //1600
@@ -36,6 +36,7 @@
 #define kk_ 196.0
 //#define chi 17.0
 #define rr_0  0.07    // ¬нутренн€€ сфера (на которой став€тс€ граничные услови€ - реально она дальше)
+#define ro_E (1.0 / (phi_0 * phi_0 * rr_0 * rr_0))
 
 
 extern __device__ int sign_(const double& x);

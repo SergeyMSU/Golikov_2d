@@ -9,24 +9,24 @@
 #include "Header.h"
 
 #define Omega 0.0
-#define N 2816 // 7167 //1792 //1792                 // Количество ячеек по x
-#define M 1536  // //1280 //1280                 // Количество ячеек по y
+#define N 1024 //2816 // 7167 //1792 //1792                 // Количество ячеек по x
+#define M 1792 // 1536  // //1280 //1280                 // Количество ячеек по y
 #define K (N*M)                // Количество ячеек в сетке
-#define x_max 7.0 //450.0
+#define x_max 5.0// 7.0 //450.0
 #define x_min (x_max/(2.0 * N)) // -2760.0 // -2500.0 // -1300  //-2000                // -1500.0
 #define y_max 4.0 // 2250.0 // 1600.0 //1840.0
-#define y_min (y_max/(2.0 * M))  // -30.0 // (y_max/(2.0 * M)) 
-#define dx ((x_max)/(N))  // ((x_max - x_min)/(N - 1))     // Величина грани по dx
-#define dy ((y_max)/(M)) //  ((y_max - y_min)/(M - 1))     // Величина грани по dy
+#define y_min -4.0//(y_max/(2.0 * M))  // -30.0 // (y_max/(2.0 * M)) 
+#define dx ((x_max - x_min)/(N - 1))  // ((x_max - x_min)/(N))     // Величина грани по dx
+#define dy ((y_max - y_min)/(M - 1)) //  ((y_max - y_min)/(M))     // Величина грани по dy
 
 #define ER_S std::cout << "\n---------------------\nStandart error in file: Solvers.cpp\n" << endl
 #define watch(x) cout << (#x) << " is " << (x) << endl
 #define eps (1e-10)
 #define eps8 (1e-8)
-#define hy 00.0
+#define hy -6600.0
 #define hx -3288.0
 #define grad_p true
-#define Nmin 3              // Каждую какую точку выводим?
+#define Nmin 4              // Каждую какую точку выводим?
 #define THREADS_PER_BLOCK 256    // Количество нитей в одном потоке // Необходимо, чтобы количество ячеек в сетке делилось на число нитей (лучше N делилось на число нитей)
 
 __device__ int sign(double& x);
@@ -1879,6 +1879,7 @@ __global__ void add2(double2* s, double2* u, double3* b, double2* s2, double2* u
     int index = blockIdx.x * blockDim.x + threadIdx.x;   // Глобальный индекс текущей ячейки (текущего потока)
     int n = index % N;                                   // номер ячейки по x (от 0)
     int m = (index - n) / N;                             // номер ячейки по y (от 0)
+    //double y = y_min + m * dy; // (y_max - y_min) / (M - 1);
     double y = y_min + m * dy; // (y_max - y_min) / (M - 1);
     double x = x_min + n * dx; // (x_max - x_min) / (N - 1);
     double dist = sqrt(x * x + y * y);
@@ -1994,11 +1995,11 @@ __global__ void add2(double2* s, double2* u, double3* b, double2* s2, double2* u
 
     if ((m == 0))
     {
-        if (false)
+        if (true)  // Если нижняя граница - не ось симметрии
         {
-            s_5 = { 1.0, 1.0 / ggg };
-            u_5 = { 0.0, 0.0 };
-            b_5 = b_1;
+            s_3 = { 1.0, 1.0 / ggg };
+            u_3 = { 0.0, 0.0 };
+            b_3 = b_1;
         }
         else
         {
@@ -2133,6 +2134,10 @@ __global__ void add2(double2* s, double2* u, double3* b, double2* s2, double2* u
 
     double dV = dx * dy;
 
+    if (y < 0)
+    {
+        printf("Problemsssss y < 0!!!!!! x = %lf, y = %lf \n", x, y);
+    }
 
     Pdiv = Pdiv + dV * b_1.y / y;
     //Pdiv = 0.0;
@@ -2195,7 +2200,7 @@ __global__ void add2(double2* s, double2* u, double3* b, double2* s2, double2* u
     }
 }
 
-__global__ void Kernel_TVD(double2* s, double2* u, double3* b, double2* s2, double2* u2, double3* b2, double* T, double* T_do, int i, int method)
+__global__ void Kernel_TVD(double2* s, double2* u, double3* b, double2* s2, double2* u2, double3* b2, double* T, double* T_do, int i, int method, double* TT)
 {
     int index = blockIdx.x * blockDim.x + threadIdx.x;   // Глобальный индекс текущей ячейки (текущего потока)
     int n = index % N;                                   // номер ячейки по x (от 0)
@@ -2203,6 +2208,15 @@ __global__ void Kernel_TVD(double2* s, double2* u, double3* b, double2* s2, doub
     double y = y_min + m * dy; // (y_max) / (M);
     double x = x_min + n * dx; // (x_max) / (N);  //(x_max - x_min) / (N - 1);
     double dist = __dsqrt_rn(x * x + y * y);
+
+    double2 sss;
+    double3 bbb;
+    int sign_y = 1;
+    if (y < 0.0)
+    {
+        sign_y = -1;
+    }
+    y = fabs(y);
 
     double2 s_1, s_2, s_3, s_4, s_5, u_1, u_2, u_3, u_4, u_5;      // Переменные всех соседей и самой ячейки
     double3 b_1, b_2, b_3, b_4, b_5;
@@ -2221,6 +2235,12 @@ __global__ void Kernel_TVD(double2* s, double2* u, double3* b, double2* s2, doub
         s2[index] = s_1;
         u2[index] = u_1;
         b2[index] = b_1;
+
+        s2[index].x = ro_E / pow(dist / rr_0, 2.0);
+        if (y < 0 && *TT < 0.5)
+        {
+            s2[index].x = s2[index].x * (1.0 + 0.01 * sin(*TT * pi * 4.0));
+        }
         return;
     }
     s_2 = s[(m)*N + n + 1];
@@ -2278,13 +2298,22 @@ __global__ void Kernel_TVD(double2* s, double2* u, double3* b, double2* s2, doub
 
     if ((m == 0))
     {
-        s_3 = s_1;
-        u_3.x = u_1.x;
-        u_3.y = -u_1.y;
-        //b_3.x = -b_1.x;
-        b_3.x = b_1.x;
-        b_3.y = b_1.y;
-        b_3.z = -b_1.z;
+        if (true)
+        {
+            s_3 = { 1.0, 1.0 / ggg };
+            u_3 = { 0.0, 0.0 };
+            b_3 = { 0.0, 0.0 };  // b_1
+        }
+        else
+        {
+            s_3 = s_1;
+            u_3.x = u_1.x;
+            u_3.y = -u_1.y;
+            //b_3.x = -b_1.x;
+            b_3.x = b_1.x;
+            b_3.y = b_1.y;
+            b_3.z = -b_1.z;
+        }
     }
     else
     {
@@ -2381,27 +2410,96 @@ __global__ void Kernel_TVD(double2* s, double2* u, double3* b, double2* s2, doub
 
     if (m == 0)
     {
-        s31 = s_5;
-        u31.x = u_5.x;
-        u31.y = -u_5.y;
-        b31.x = b_5.x;
-        b31.y = b_5.y;
-        b31.z = -b_5.z;
+        if (true)
+        {
+            s31 = { 1.0, 1.0 / ggg };
+            u31 = { 0.0, 0.0 };
+            b31 = { 0.0, 0.0 };
+        }
+        else
+        {
+            s31 = s_5;
+            u31.x = u_5.x;
+            u31.y = -u_5.y;
+            b31.x = b_5.x;
+            b31.y = b_5.y;
+            b31.z = -b_5.z;
+        }
     }
     else if (m == 1)
     {
-        s31 = s_3;
-        u31.x = u_3.x;
-        u31.y = -u_3.y;
-        b31.x = b_3.x;
-        b31.y = b_3.y;
-        b31.z = -b_3.z;
+        if (true)
+        {
+            s31 = { 1.0, 1.0 / ggg };
+            u31 = { 0.0, 0.0 };
+            b31 = { 0.0, 0.0 };
+        }
+        else
+        {
+            s31 = s_3;
+            u31.x = u_3.x;
+            u31.y = -u_3.y;
+            b31.x = b_3.x;
+            b31.y = b_3.y;
+            b31.z = -b_3.z;
+        }
     }
     else
     {
         s31 = s[(m - 2) * N + (n)];
         u31 = u[(m - 2) * N + (n)];
         b31 = b[(m - 2) * N + (n)];
+    }
+
+    if (sign_y == -1)
+    {
+        sss = s_5;
+        s_5 = s_3;
+        s_3 = sss;
+
+        sss = s51;
+        s51 = s31;
+        s31 = sss;
+
+        sss = u_5;
+        u_5 = u_3;
+        u_3 = sss;
+
+        sss = u51;
+        u51 = u31;
+        u31 = sss;
+
+        bbb = b_5;
+        b_5 = b_3;
+        b_3 = bbb;
+
+        bbb = b51;
+        b51 = b31;
+        b31 = bbb;
+
+        u_1.y = u_1.y * sign_y;
+        u_2.y = u_2.y * sign_y;
+        u_3.y = u_3.y * sign_y;
+        u_4.y = u_4.y * sign_y;
+        u_5.y = u_5.y * sign_y;
+
+        u21.y = u21.y * sign_y;
+        u31.y = u31.y * sign_y;
+        u41.y = u41.y * sign_y;
+        u51.y = u51.y * sign_y;
+
+        b_1.z = b_1.z * sign_y;
+        b_2.z = b_2.z * sign_y;
+        b_3.z = b_3.z * sign_y;
+        b_4.z = b_4.z * sign_y;
+        b_5.z = b_5.z * sign_y;
+
+        //Не стал писать для by - так как он должен быть ноль
+
+        b21.z = b21.z * sign_y;
+        b31.z = b31.z * sign_y;
+        b41.z = b41.z * sign_y;
+        b51.z = b51.z * sign_y;
     }
 
     linear2(x - dx, s_4.x, x, s_1.x, x + dx, s_2.x, x - dx / 2.0, x + dx / 2.0, A, B);
@@ -2657,6 +2755,13 @@ __global__ void Kernel_TVD(double2* s, double2* u, double3* b, double2* s2, doub
     if (s2[index].y <= 0)
     {
         s2[index].y = 0.000001;
+    }
+
+    if (sign_y < 0.0)
+    {
+        u2[index].y = u2[index].y * sign_y;
+        b2[index].y = b2[index].y * sign_y;
+        b2[index].z = b2[index].z * sign_y;
     }
 }
 
@@ -3899,7 +4004,7 @@ int main(void)
     //double Max_ = 0.5;
     //double MM = kk_ / chi;
     double V_E = phi_0;
-    double ro_E = 1.0/ (phi_0* phi_0 * rr_0 * rr_0); // MM / (4.0 * pi * V_E * rr_0 * rr_0);
+    //double ro_E = 1.0/ (phi_0* phi_0 * rr_0 * rr_0); // MM / (4.0 * pi * V_E * rr_0 * rr_0);
     double P_E = ro_E * V_E * V_E / (ggg * M_0 * M_0);   // Мах другой в давлении
     double B_E = sqrt(4.0 * pi) / (M_alf * rr_0);
     for (int k = 0; k < K; k++)  // Заполняем начальные условия
@@ -3941,32 +4046,49 @@ int main(void)
     }
 
 
-    if (false)
+    if (true)
     {
         double c1, c2, a1, a2, a3, a4, a5, a6, a7, a8;
-        ifstream fin;
-        fin.open("instable_cp14.txt");
+        if (false)
+        {
+            double c1, c2, a1, a2, a3, a4, a5, a6, a7, a8;
+            ifstream fin;
+            fin.open("instable_cp14.txt");
 
+            for (int k = 0; k < K; k++)
+            {
+                fin >> c1 >> c2 >> a1 >> a2 >> a3 >> a4 >> a5 >> a6 >> a7;
+                host_s[k].x = a1;
+                host_s[k].y = a2;
+                host_u[k].x = a3;
+                host_u[k].y = a4;
+                host_b[k].x = a5;
+                host_b[k].y = a6;
+                host_b[k].z = a7;
+
+                host_s2[k].x = a1;
+                host_s2[k].y = a2;
+                host_u2[k].x = a3;
+                host_u2[k].y = a4;
+                host_b2[k].x = a5;
+                host_b2[k].y = a6;
+                host_b2[k].z = a7;
+            }
+            fin.close();
+        }
+
+        ifstream fin("save_b2.dat", ios::binary | ios::in);
         for (int k = 0; k < K; k++)
         {
-            fin >> c1 >> c2 >> a1 >> a2 >> a3 >> a4 >> a5 >> a6 >> a7;
-            host_s[k].x = a1;
-            host_s[k].y = a2;
-            host_u[k].x = a3;
-            host_u[k].y = a4;
-            host_b[k].x = a5;
-            host_b[k].y = a6;
-            host_b[k].z = a7;
 
-            host_s2[k].x = a1;
-            host_s2[k].y = a2;
-            host_u2[k].x = a3;
-            host_u2[k].y = a4;
-            host_b2[k].x = a5;
-            host_b2[k].y = a6;
-            host_b2[k].z = a7;
+            fin.read((char*)&c1, sizeof(c1));
+            fin.read((char*)&c2, sizeof(c1));
+            fin.read((char*)&host_s[k].x, sizeof(host_s[k].x));
+            fin.read((char*)&host_s[k].y, sizeof(host_s[k].y));
+            fin.read((char*)&host_u[k].x, sizeof(host_u[k].x));
+            fin.read((char*)&host_u[k].y, sizeof(host_u[k].y));
+            fin.read((char*)&host_b[k].z, sizeof(host_b[k].z));
         }
-        fin.close();
 
         for (int k = 0; k < K; k++)  // Заполняем начальные условия
         {
@@ -3977,7 +4099,7 @@ int main(void)
 
             double dist = sqrt(x * x + y * y);
 
-            if (dist < ddist * 1.001)
+            if (dist < ddist * 1.01)
             {
                 host_s[k] = { ro_E / pow(dist / rr_0, 2.0), P_E * pow(rr_0 / dist, 2.0 * ggg) };
                 host_u[k] = { V_E * x / dist, V_E * y / dist };
@@ -4029,9 +4151,9 @@ int main(void)
     int meth = 2;  // HLL метода нет! Нужно сделать
 
     // NO TVD
-    for (int i = 0; i < 200000; i = i + 2)  // Сколько шагов по времени делаем?
+    for (int i = 0; i < 0; i = i + 2)  // Сколько шагов по времени делаем?
     {
-        if (i % 5000 == 0)
+        if (i % 1000 == 0)
         {
             cout << "Metod  " << meth << "   " << i <<  endl;
         }
@@ -4083,7 +4205,7 @@ int main(void)
             exit(-1);
         }
 
-        if ((i % 50000 == 0 && i > 2))
+        if ((i % 3000 == 0 && i > 2))
         {
             cudaEventRecord(stop, 0);
             cudaEventSynchronize(stop);
@@ -4098,8 +4220,11 @@ int main(void)
         }
     }
 
+    *host_TT = 0.0;
+    cudaMemcpy(TT, host_TT, sizeof(double), cudaMemcpyHostToDevice);
+
     // TVD
-    for (int i = 0; i < 400000; i = i + 2)  // Сколько шагов по времени делаем?
+    for (int i = 0; i < 500000; i = i + 2)  // Сколько шагов по времени делаем?
     {
         if (i % 1000 == 0)
         {
@@ -4110,7 +4235,7 @@ int main(void)
             meth = 3;
         }*/
         //add2 << < K / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (s, u, b, s2, u2, b2, T, T_do, i, meth);
-        Kernel_TVD << < K / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (s, u, b, s2, u2, b2, T, T_do, i, meth);
+        Kernel_TVD << < K / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (s, u, b, s2, u2, b2, T, T_do, i, meth, TT);
             cudaStatus = cudaGetLastError();
         if (cudaStatus != cudaSuccess) {
             fprintf(stderr, "1  addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
@@ -4134,7 +4259,7 @@ int main(void)
             exit(-1);
         }
 
-        Kernel_TVD << < K / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (s2, u2, b2, s, u, b, T, T_do, i, meth);
+        Kernel_TVD << < K / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (s2, u2, b2, s, u, b, T, T_do, i, meth, TT);
             //add2 << < K / THREADS_PER_BLOCK, THREADS_PER_BLOCK >> > (s2, u2, b2, s, u, b, T, T_do, i, meth);
             cudaStatus = cudaGetLastError();
         if (cudaStatus != cudaSuccess) { fprintf(stderr, "3  addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));   exit(-1); }
@@ -4153,7 +4278,7 @@ int main(void)
             exit(-1);
         }
 
-        if ((i % 100000 == 0 && i > 5000))
+        if ((i % 2000 == 0 && i > 50 && i < 100000)|| (i % 10000 == 0 && i > 50))
         {
             cudaEventRecord(stop, 0);
             cudaEventSynchronize(stop);
