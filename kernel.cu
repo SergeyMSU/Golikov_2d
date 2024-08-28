@@ -9,13 +9,13 @@
 #include "Header.h"
 
 #define Omega 0.0
-#define N 1024 //2816 // 7167 //1792 //1792                 // Количество ячеек по x
-#define M 1792 // 1536  // //1280 //1280                 // Количество ячеек по y
+#define N 2048 //2816 // 7167 //1792 //1792                 // Количество ячеек по x
+#define M 1024 // 1536  // //1280 //1280                 // Количество ячеек по y
 #define K (N*M)                // Количество ячеек в сетке
-#define x_max 5.0// 7.0 //450.0
+#define x_max 3.0// 7.0 //450.0
 #define x_min (x_max/(2.0 * N)) // -2760.0 // -2500.0 // -1300  //-2000                // -1500.0
-#define y_max 4.0 // 2250.0 // 1600.0 //1840.0
-#define y_min -4.0//(y_max/(2.0 * M))  // -30.0 // (y_max/(2.0 * M)) 
+#define y_max 1.0 // 2250.0 // 1600.0 //1840.0
+#define y_min -1.0//(y_max/(2.0 * M))  // -30.0 // (y_max/(2.0 * M)) 
 #define dx ((x_max - x_min)/(N - 1))  // ((x_max - x_min)/(N))     // Величина грани по dx
 #define dy ((y_max - y_min)/(M - 1)) //  ((y_max - y_min)/(M))     // Величина грани по dy
 
@@ -26,7 +26,7 @@
 #define hy -6600.0
 #define hx -3288.0
 #define grad_p true
-#define Nmin 4              // Каждую какую точку выводим?
+#define Nmin 6              // Каждую какую точку выводим?
 #define THREADS_PER_BLOCK 256    // Количество нитей в одном потоке // Необходимо, чтобы количество ячеек в сетке делилось на число нитей (лучше N делилось на число нитей)
 
 __device__ int sign(double& x);
@@ -1931,8 +1931,8 @@ __global__ void add2(double2* s, double2* u, double3* b, double2* s2, double2* u
         if (y < 0.1 && *TT < 1.0)
         {
             //s2[index].x = s2[index].x * (1.0 + 0.03 * sin(*TT * pi * 5.0));
-            u2[index].x = u2[index].x * (1.0 + 0.05 * sin(*TT * pi * 5.0));
-            u2[index].y = u2[index].y * (1.0 + 0.05 * sin(*TT * pi * 5.0));
+            //u2[index].x = u2[index].x * (1.0 + 0.05 * sin(*TT * pi * 5.0));
+            //u2[index].y = u2[index].y * (1.0 + 0.05 * sin(*TT * pi * 5.0));
         }
         return;
     }
@@ -1950,16 +1950,13 @@ __global__ void add2(double2* s, double2* u, double3* b, double2* s2, double2* u
 
     if ((m == M - 1))
     {
-        /*s_5 = s_1;
+        s_5 = s_1;
         u_5 = u_1;
-        if (u_5.y < 0)
-        {
-            u_5.y = 0.001;
-        }
-        b_5 = b_1;*/
-        s_5 = { 1.0, 1.0 / ggg };
-        u_5 = { 0.0, 0.0 };
+        u_5.y = -u_5.y;
         b_5 = b_1;
+        /*s_5 = { 1.0, 1.0 / ggg };
+        u_5 = { 0.0, 0.0 };
+        b_5 = b_1;*/
     }
     else
     {
@@ -2007,7 +2004,19 @@ __global__ void add2(double2* s, double2* u, double3* b, double2* s2, double2* u
 
     if ((m == 0))
     {
-        if (true)  // Если нижняя граница - не ось симметрии
+        if (true)
+        {
+            s_3 = s_1;
+            u_3.x = u_1.x;
+            u_3.y = -u_1.y;
+            
+
+            b_3.x = b_1.x;
+            b_3.y = b_1.y;
+            b_3.z = b_1.z;
+
+        }
+        else if (true)  // Если нижняя граница - не ось симметрии
         {
             s_3 = { 1.0, 1.0 / ggg };
             u_3 = { 0.0, 0.0 };
@@ -4068,7 +4077,7 @@ int main(void)
     }
 
 
-    if (true)
+    if (false)
     {
         double c1, c2, a1, a2, a3, a4, a5, a6, a7, a8;
         if (false)
@@ -4173,7 +4182,7 @@ int main(void)
     int meth = 2;  // HLL метода нет! Нужно сделать
 
     // NO TVD
-    for (int i = 0; i < 500000; i = i + 2)  // Сколько шагов по времени делаем?
+    for (int i = 0; i < 600000; i = i + 2)  // Сколько шагов по времени делаем?
     {
         if (i % 1000 == 0)
         {
@@ -4227,7 +4236,7 @@ int main(void)
             exit(-1);
         }
 
-        if ((i % 2000 == 0))
+        if ((i % 20000 == 0))
         {
             cudaEventRecord(stop, 0);
             cudaEventSynchronize(stop);
