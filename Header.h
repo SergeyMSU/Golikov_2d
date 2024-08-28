@@ -23,9 +23,9 @@
 
 #define M_inf  0.0 // 0.7 // 0.4 // 0.8
 #define M_infty  M_inf
-#define phi_0  17.0 // 2.0 // 17.0 // 4.878 //1.627
+#define phi_0  4.0 // 2.0 // 17.0 // 4.878 //1.627
 #define alpha  45.0
-#define M_alf  9.0 // 12.0
+#define M_alf  8.0 // 12.0
 #define epsilon_ (1.0/M_alf)
 #define step  70000
 #define omega 0.0 //6 //1600
